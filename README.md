@@ -1,0 +1,46 @@
+# PX4 ROS 2 Ground Control Station (GCS)
+
+Dự án này là hệ thống Ground Control Station (GCS) dành cho PX4 SITL/Gazebo trên nền tảng ROS 2. Cho phép giám sát, điều khiển, và thiết kế quỹ đạo bay cho drone một cách trực quan trên nền web và RViz2.
+
+## 👨‍💻 Tác giả và Bản quyền
+Dự án là sự kết hợp giữa các core logic điều khiển (original) và giao diện điều khiển (GUI) cùng với module giám sát trực quan 3D (visualizer) được phát triển riêng.
+
+*   **Phần Giao diện Web (GUI / `px4_gcs`) và Trực quan hóa 3D (`px4_trajectory_visualizer`)**: Được thiết kế, phát triển và tối ưu bởi **TuanLinh05**.
+*   **Phần backend core (Điều khiển PID, LQR, Test Bridge, v.v...)**: Mã nguồn gốc (src) thuộc về tác giả nguyên bản.
+
+## 📂 Cấu trúc mã nguồn
+
+*   `px4_gcs/`: (Tác giả: TuanLinh05) Gói Web GUI cung cấp giao diện giám sát Realtime Telemetry, quản lý process, và thiết kế quỹ đạo (Trajectory Designer).
+*   `px4_trajectory_visualizer/`: (Tác giả: TuanLinh05) Node giao tiếp với RViz2 để render 3D quỹ đạo đường bay thực tế, điểm đích (setpoint), điểm theo dõi (waypoint), và hệ tọa độ 3D (TF) của drone.
+*   `px4_gen_trajectory/`: Node tạo và phát quỹ đạo bay để drone theo dõi. (Đã được điều chỉnh để hỗ trợ Hover mặc định và nhận lệnh vẽ quỹ đạo từ GUI).
+*   `px4_position_controller/`: Bộ điều khiển vị trí dùng thuật toán PID.
+*   `px4_lqr_controller/`: Bộ điều khiển vị trí dùng thuật toán LQR.
+*   `px4_msgs/`: Các file định nghĩa message (uORB) của PX4, cầu nối giữa ROS 2 và PX4 qua DDS.
+*   `px4_test_bridge/`: Node kiểm thử giao tiếp cơ bản.
+
+## 🚀 Hướng dẫn khởi chạy
+
+### Yêu cầu hệ thống
+*   Ubuntu 22.04 (hoặc WSL2)
+*   ROS 2 Humble
+*   PX4-Autopilot (cùng cấu hình Micro XRCE-DDS Agent)
+
+### Build và Chạy
+1. **Build dự án:**
+   ```bash
+   cd src/..
+   colcon build
+   source install/setup.bash
+   ```
+
+2. **Chạy Node GCS Manager:**
+   ```bash
+   ros2 run px4_gcs gcs_node
+   ```
+
+3. **Mở giao diện điều khiển (GUI):**
+   * Mở trình duyệt và truy cập: `http://localhost:8085`
+   * Bấm **Launch All** trong "Process Manager" để hệ thống tự động gọi PX4 SITL, Agent, Controllers và mở sẵn không gian 3D trên **RViz2**.
+
+---
+*Đồ án 1 - Khóa HK252*

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PX4 Ground Control Station</title>
+  <meta name="description" content="Professional PX4 Drone Ground Control Station with trajectory design, PID/LQR tuning, and real-time telemetry.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css?v=2">
+  <script>
+    // Restore saved theme immediately to avoid dark flash
+    (function(){var t=localStorage.getItem('gcs-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
+  </script>
+</head>
+<body>
+  <!-- ═══ Top Bar ═══ -->
+  <header id="topbar">
+    <div class="topbar-left">
+      <div class="logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">PX4 GCS</span>
+      </div>
+    </div>
+    <div class="topbar-center">
+      <div class="status-pills">
+        <div class="pill" id="pill-connection">
+          <span class="pill-dot"></span>
+          <span class="pill-label">Connection</span>
+        </div>
+        <div class="pill" id="pill-armed">
+          <span class="pill-dot"></span>
+          <span class="pill-label">Disarmed</span>
+        </div>
+        <div class="pill" id="pill-mode">
+          <span class="pill-dot"></span>
+          <span class="pill-label">Mode: --</span>
+        </div>
+        <div class="pill" id="pill-controller">
+          <span class="pill-dot"></span>
+          <span class="pill-label">PID Active</span>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="theme-toggle" id="theme-toggle" title="Toggle Light/Dark Theme"
+        onclick="(function(){var d=document.documentElement,t=d.getAttribute('data-theme')==='light'?'dark':'light';d.setAttribute('data-theme',t);document.getElementById('theme-toggle').textContent=t==='light'?'☀️':'🌙';localStorage.setItem('gcs-theme',t);if(typeof TrajectoryCanvas!=='undefined')setTimeout(function(){TrajectoryCanvas.resize()},50);if(typeof Charts!=='undefined')setTimeout(function(){Charts.reInit()},50)})()">🌙</button>
+      <div class="battery-indicator" id="battery-indicator">
+        <div class="battery-icon">
+          <div class="battery-fill" id="battery-fill"></div>
+        </div>
+        <span class="battery-text" id="battery-text">--V</span>
+      </div>
+      <div class="uptime" id="uptime">00:00:00</div>
+    </div>
+  </header>
+
+  <!-- ═══ Main Layout ═══ -->
+  <div id="app-container">
+    <!-- ═══ Sidebar ═══ -->
+    <aside id="sidebar">
+      <!-- Nav Tabs -->
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-panel="panel-processes" id="nav-processes">
+          <span class="nav-icon">📡</span><span class="nav-label">Processes</span>
+        </button>
+        <button class="nav-btn" data-panel="panel-commands" id="nav-commands">
+          <span class="nav-icon">🎮</span><span class="nav-label">Commands</span>
+        </button>
+        <button class="nav-btn" data-panel="panel-tuning" id="nav-tuning">
+          <span class="nav-icon">🔧</span><span class="nav-label">Tuning</span>
+        </button>
+        <button class="nav-btn" data-panel="panel-telemetry" id="nav-telemetry">
+          <span class="nav-icon">📊</span><span class="nav-label">Data</span>
+        </button>
+      </nav>
+
+      <!-- Panel: Process Manager -->
+      <div class="sidebar-panel active" id="panel-processes">
+        <div class="panel-header">
+          <h3>Process Manager</h3>
+          <div class="panel-actions">
+            <button class="btn btn-accent btn-sm" id="btn-launch-all">🚀 Launch All</button>
+            <button class="btn btn-danger btn-sm" id="btn-stop-all">⏹ Stop All</button>
+          </div>
+        </div>
+        <div class="process-list" id="process-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Panel: Commands -->
+      <div class="sidebar-panel" id="panel-commands">
+        <div class="panel-header"><h3>Flight Commands</h3></div>
+        <div class="command-grid">
+          <button class="btn btn-success cmd-btn" id="btn-arm">ARM</button>
+          <button class="btn btn-danger cmd-btn" id="btn-disarm">DISARM</button>
+          <button class="btn btn-primary cmd-btn" id="btn-offboard">OFFBOARD</button>
+          <button class="btn btn-warning cmd-btn" id="btn-land">LAND</button>
+          <button class="btn btn-secondary cmd-btn" id="btn-rtl">RTL</button>
+          <button class="btn btn-secondary cmd-btn" id="btn-reset-traj">RESET TRAJ</button>
+        </div>
+
+        <div class="divider"></div>
+        <h4 class="section-title">Controller Mode</h4>
+        <div class="controller-switch">
+          <label class="switch-label" id="label-pid">PID</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="controller-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+          <label class="switch-label" id="label-lqr">LQR</label>
+        </div>
+        <div class="controller-indicator" id="controller-indicator">
+          <span class="indicator-text">PID Controller Active</span>
+        </div>
+
+        <div class="divider"></div>
+        <h4 class="section-title">Position Info</h4>
+        <div class="info-grid" id="position-info">
+          <div class="info-item"><span class="info-label">X</span><span class="info-value" id="pos-x">0.00</span></div>
+          <div class="info-item"><span class="info-label">Y</span><span class="info-value" id="pos-y">0.00</span></div>
+          <div class="info-item"><span class="info-label">Z</span><span class="info-value" id="pos-z">0.00</span></div>
+          <div class="info-item"><span class="info-label">Vx</span><span class="info-value" id="vel-x">0.00</span></div>
+          <div class="info-item"><span class="info-label">Vy</span><span class="info-value" id="vel-y">0.00</span></div>
+          <div class="info-item"><span class="info-label">Vz</span><span class="info-value" id="vel-z">0.00</span></div>
+        </div>
+      </div>
+
+      <!-- Panel: Tuning -->
+      <div class="sidebar-panel" id="panel-tuning">
+        <div class="panel-header"><h3>Controller Tuning</h3></div>
+
+        <!-- PID Tuning -->
+        <div class="tuning-section" id="pid-tuning">
+          <h4 class="section-title">PID Gains — XY Axis</h4>
+          <div class="param-group">
+            <label>Kp_xy<input type="range" min="0" max="5" step="0.05" value="0.6" id="slider-kp-xy"><span class="param-val" id="val-kp-xy">0.60</span></label>
+            <label>Ki_xy<input type="range" min="0" max="1" step="0.005" value="0.02" id="slider-ki-xy"><span class="param-val" id="val-ki-xy">0.02</span></label>
+            <label>Kd_xy<input type="range" min="0" max="3" step="0.05" value="0.3" id="slider-kd-xy"><span class="param-val" id="val-kd-xy">0.30</span></label>
+          </div>
+          <h4 class="section-title">PID Gains — Z Axis</h4>
+          <div class="param-group">
+            <label>Kp_z<input type="range" min="0" max="5" step="0.05" value="1.5" id="slider-kp-z"><span class="param-val" id="val-kp-z">1.50</span></label>
+            <label>Ki_z<input type="range" min="0" max="1" step="0.005" value="0.1" id="slider-ki-z"><span class="param-val" id="val-ki-z">0.10</span></label>
+            <label>Kd_z<input type="range" min="0" max="3" step="0.05" value="0.5" id="slider-kd-z"><span class="param-val" id="val-kd-z">0.50</span></label>
+          </div>
+          <button class="btn btn-accent btn-sm" id="btn-apply-pid">Apply PID</button>
+          <button class="btn btn-secondary btn-sm" id="btn-reset-pid">Reset Default</button>
+        </div>
+
+        <!-- LQR Tuning -->
+        <div class="tuning-section" id="lqr-tuning" style="display:none;">
+          <h4 class="section-title">LQR — Q Matrix (State Cost)</h4>
+          <div class="param-group">
+            <label>Q pos XY<input type="range" min="0.1" max="20" step="0.1" value="4.0" id="slider-q-pos-xy"><span class="param-val" id="val-q-pos-xy">4.0</span></label>
+            <label>Q pos Z<input type="range" min="0.1" max="20" step="0.1" value="6.0" id="slider-q-pos-z"><span class="param-val" id="val-q-pos-z">6.0</span></label>
+            <label>Q vel XY<input type="range" min="0.1" max="20" step="0.1" value="2.0" id="slider-q-vel-xy"><span class="param-val" id="val-q-vel-xy">2.0</span></label>
+            <label>Q vel Z<input type="range" min="0.1" max="20" step="0.1" value="3.0" id="slider-q-vel-z"><span class="param-val" id="val-q-vel-z">3.0</span></label>
+          </div>
+          <h4 class="section-title">LQR — R Matrix (Input Cost)</h4>
+          <div class="param-group">
+            <label>R xy<input type="range" min="0.1" max="10" step="0.1" value="1.0" id="slider-r-xy"><span class="param-val" id="val-r-xy">1.0</span></label>
+            <label>R z<input type="range" min="0.1" max="10" step="0.1" value="1.0" id="slider-r-z"><span class="param-val" id="val-r-z">1.0</span></label>
+          </div>
+          <button class="btn btn-accent btn-sm" id="btn-apply-lqr">Apply LQR</button>
+          <button class="btn btn-secondary btn-sm" id="btn-reset-lqr">Reset Default</button>
+        </div>
+      </div>
+
+      <!-- Panel: Telemetry Data -->
+      <div class="sidebar-panel" id="panel-telemetry">
+        <div class="panel-header"><h3>Telemetry</h3></div>
+        <div class="telemetry-data">
+          <h4 class="section-title">Trajectory Progress</h4>
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="traj-progress-bar"></div>
+          </div>
+          <div class="traj-info" id="traj-info">WP: 0/0</div>
+
+          <div class="divider"></div>
+          <h4 class="section-title">Controller Output</h4>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Acc X</span><span class="info-value" id="acc-x">0.00</span></div>
+            <div class="info-item"><span class="info-label">Acc Y</span><span class="info-value" id="acc-y">0.00</span></div>
+            <div class="info-item"><span class="info-label">Acc Z</span><span class="info-value" id="acc-z">0.00</span></div>
+          </div>
+
+          <div class="divider"></div>
+          <h4 class="section-title">Error</h4>
+          <div class="info-grid">
+            <div class="info-item"><span class="info-label">Err X</span><span class="info-value" id="err-x">0.00</span></div>
+            <div class="info-item"><span class="info-label">Err Y</span><span class="info-value" id="err-y">0.00</span></div>
+            <div class="info-item"><span class="info-label">Err Z</span><span class="info-value" id="err-z">0.00</span></div>
+          </div>
+
+          <div class="divider"></div>
+          <button class="btn btn-secondary btn-sm" id="btn-export-csv">📁 Export CSV</button>
+          <button class="btn btn-secondary btn-sm" id="btn-clear-data">🗑 Clear Data</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ═══ Main Content ═══ -->
+    <main id="main-content">
+      <!-- Main Content Tabs -->
+      <div class="main-tabs">
+        <button class="main-tab active" data-main-tab="tab-trajectory" id="main-tab-trajectory">✏️ Trajectory Designer</button>
+        <button class="main-tab" data-main-tab="tab-telemetry" id="main-tab-telemetry">📈 Live Telemetry</button>
+      </div>
+
+      <!-- Tab: Trajectory Designer -->
+      <div class="main-tab-panel active" id="tab-trajectory">
+        <section class="card card-fill" id="trajectory-section">
+          <div class="card-header">
+            <h2 class="card-title">✏️ Trajectory Designer</h2>
+            <div class="card-actions">
+              <button class="btn btn-accent btn-sm" id="btn-upload-traj">🚀 Upload to Drone</button>
+            </div>
+          </div>
+          <div class="trajectory-controls">
+            <div class="shape-selector">
+              <button class="shape-btn active" data-shape="square" id="shape-square">◻ Square</button>
+              <button class="shape-btn" data-shape="circle" id="shape-circle">○ Circle</button>
+              <button class="shape-btn" data-shape="triangle" id="shape-triangle">△ Triangle</button>
+              <button class="shape-btn" data-shape="hexagon" id="shape-hexagon">⬡ Hexagon</button>
+              <button class="shape-btn" data-shape="octagon" id="shape-octagon">⬢ Octagon</button>
+              <button class="shape-btn" data-shape="figure8" id="shape-figure8">∞ Figure-8</button>
+              <button class="shape-btn" data-shape="star" id="shape-star">★ Star</button>
+              <button class="shape-btn" data-shape="helix" id="shape-helix">🌀 Helix</button>
+              <button class="shape-btn" data-shape="custom" id="shape-custom">✎ Free Draw</button>
+            </div>
+            <div class="traj-params">
+              <label>Waypoints <input type="range" min="4" max="64" step="1" value="8" id="traj-points"><span id="traj-points-val">8</span></label>
+              <label>Size (m) <input type="range" min="1" max="20" step="0.5" value="3" id="traj-size"><span id="traj-size-val">3.0</span></label>
+              <label>Altitude (m) <input type="range" min="1" max="15" step="0.5" value="3" id="traj-alt"><span id="traj-alt-val">3.0</span></label>
+              <label>Center X <input type="range" min="-10" max="10" step="0.5" value="0" id="traj-cx"><span id="traj-cx-val">0.0</span></label>
+              <label>Center Y <input type="range" min="-10" max="10" step="0.5" value="0" id="traj-cy"><span id="traj-cy-val">0.0</span></label>
+            </div>
+          </div>
+          <div class="canvas-container canvas-fill">
+            <canvas id="trajectory-canvas" width="700" height="400"></canvas>
+            <div class="canvas-legend">
+              <span class="legend-item"><span class="dot dot-planned"></span>Planned</span>
+              <span class="legend-item"><span class="dot dot-actual"></span>Actual</span>
+              <span class="legend-item"><span class="dot dot-current"></span>Current WP</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Tab: Live Telemetry -->
+      <div class="main-tab-panel" id="tab-telemetry">
+        <section class="card card-fill" id="charts-section">
+          <div class="card-header">
+            <h2 class="card-title">📈 Live Telemetry</h2>
+            <div class="card-actions">
+              <select id="chart-mode" class="select-input">
+                <option value="active">Active Controller</option>
+                <option value="pid">PID Only</option>
+                <option value="lqr">LQR Only</option>
+                <option value="compare">Compare PID vs LQR</option>
+              </select>
+            </div>
+          </div>
+          <div class="charts-grid">
+            <div class="chart-wrapper">
+              <div id="chart-position" class="chart-container"></div>
+            </div>
+            <div class="chart-wrapper">
+              <div id="chart-error" class="chart-container"></div>
+            </div>
+            <div class="chart-wrapper">
+              <div id="chart-control" class="chart-container"></div>
+            </div>
+            <div class="chart-wrapper">
+              <div id="chart-xy" class="chart-container"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/static/js/app.js?v=2"></script>
+  <script src="/static/js/trajectory.js?v=2"></script>
+  <script src="/static/js/charts.js?v=2"></script>
+  <script src="/static/js/controls.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>px4_gen_trajectory</name>
+  <version>0.0.1</version>
+  <description>Generate square trajectory waypoints for px4_position_controller</description>
+  <maintainer email="jun@example.com">jun</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>px4_msgs</depend>
+  <depend>geometry_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
